@@ -4,31 +4,36 @@ class Reservation < ActiveRecord::Base
   has_one :review
 
   validates :checkin, :checkout, presence: true
-  validate :cant_reserve_own_listing
-  validate :listing_availability
-  validate :checkin_not_same_as_checkout
+  
+  validate :checkout_before_checkin
+  validate :dif_checkin_checkout
+  validate :checkin_and_checkout_available
+
+  def duration
+    dates = self.checkin..self.checkout
+    duration = dates.count - 1 # subtract one for the checkout day
+  end
+
+  def total_price
+    price = self.listing.price * duration
+  end
 
   private
 
-  def checkin_not_same_as_checkout
-    if self.checkin && self.checkout && self.checkin == self.checkout
-      errors.add(:reservation, "checking and checkout must not be the same")
-    end
+  def dif_checkin_checkout
+    errors.add(:checkin_checkout, "must be different") if self.checkin == self.checkout
   end
 
-  # def listing_availability
-  #   # compare self.checkin to other checkin dates 
-  #   dates = self.listing.reservations.collect{|r| r.checking}
-  #   # if checkin date is the same or before existing reservations' checkout date for that listing, return true error out
-  #   if dates.any?(r.checkin)
-  #     errors.add(:checkin, "listing is not available")
-  #   end
-  # end
-
-  def cant_reserve_own_listing
-    if self.listing.host_id && self.guest_id && self.listing.host_id == self.guest_id
-      errors.add(:reservation, "you can't reserve your own listing")
-    end
+  def checkout_before_checkin
+    errors.add(:checkin, "must be before checkout date") if self.checkin && self.checkout && self.checkin > self.checkout
   end
 
+  def checkin_and_checkout_available # create durations for each listing reservation, check in current listing checkin and out dates conflict
+    self.listing.reservations.each do |res|
+      range = res.checkin..res.checkout
+      if range.include?(self.checkin) || range.include?(self.checkout)
+        errors.add(:reservation, "unavailable for these times")
+      end
+    end
+  end
 end

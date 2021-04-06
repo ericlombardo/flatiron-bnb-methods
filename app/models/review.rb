@@ -3,26 +3,30 @@ class Review < ActiveRecord::Base
   belongs_to :guest, :class_name => "User"
 
   validates :rating, :description, :reservation_id, presence: true
-
-  validate :accepted_reservation_status
-  validate :finished_checkout?
   
+  validate :qualifications?
+
   private
-  
-  def accepted_reservation_status
-    #self.reservation.status should be "accepted"
-    #if the status is NOT "accepted", add error messages
-    #validate method will check whether error array is empty
-    if self.reservation && self.reservation.status != "accepted"
-      errors.add(:status, "reservation must be accepted" )
-    end
-  end
-  
-  def finished_checkout?
-    # self.created_at should be after self.reservation.checkout
-    if self.created_at && self.created_at < self.reservation.checkout
-      errors.add(:created_at, "review date must not be before reservation checkout")
+
+  def qualifications? 
+    if no_res_id  # checks for reservation_id
+      errors.add(:reservation_id, "must be present to submit review")
+    elsif checkout_not_passed # checks if checkout already past
+      errors.add(:checkout, "must be in past to submit review")
+    elsif status_pending  # checks if status accepted 
+      errors.add(:status, "status must be accepted to submit review")
     end
   end
 
+  def no_res_id
+    !self.reservation_id
+  end
+
+  def checkout_not_passed
+    self.reservation.checkout >= DateTime.now
+  end
+
+  def status_pending
+    self.reservation.status == "pending"
+  end
 end

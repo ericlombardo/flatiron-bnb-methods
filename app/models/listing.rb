@@ -6,28 +6,31 @@ class Listing < ActiveRecord::Base
   has_many :guests, :class_name => "User", :through => :reservations
   
   validates :address, :listing_type, :title, :description, :price, :neighborhood_id, presence: true
-
+  
   after_create :change_host_status
-  after_destroy :change_host_status
+  before_destroy :remove_host_status?
 
-  def average_review_rating
-    reviews = self.reservations.collect{|res| res.review}
-    numbers = reviews.collect{|rev| rev.rating.to_f}
-    numbers.sum/numbers.size 
+  
+  def average_review_rating # find all reviews for listing, return average
+    ratings = self.reviews.pluck(:rating)
+    ratings.sum(0.0)/ratings.count
   end
 
   private
 
-  def change_host_status
-    if has_no_listings?
-      self.host.host = false
-    else
-      self.host.host = true
-    end
-    self.host.save
+  def change_host_status  # set host status to true after created
+    list_host.host = true
+    list_host.save
   end
-  def has_no_listings?
-    #if the listing's users' listings array is empty
-    self.host.listings.empty?
+
+  def remove_host_status? # check host for other listings, if none set host to false
+    if list_host.listings.count == 1
+      list_host.host = false
+      list_host.save
+    end
+  end
+
+  def list_host # returns current listing's host instance
+    self.host
   end
 end
